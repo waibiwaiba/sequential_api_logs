@@ -1,4 +1,7 @@
 .venv
 .vscode
 *.txt
+*.zip
 malware_log_example
+gsp_results_of_malware_log_example
+file_lists
