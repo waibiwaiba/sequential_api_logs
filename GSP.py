@@ -52,8 +52,8 @@ def main():
     if args.m:
         file_paths = args.m
     elif args.f:
-        with open(args.f, 'r') as f:
-            file_paths = [line.strip() for line in f if line.strip()]
+        with open(args.f, 'r', encoding='utf-8') as f:
+            file_paths = [line.strip() for line in f if line.strip() and not line.startswith("#")]
     
     # Process all logs into transactions
     transactions = []
