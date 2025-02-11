@@ -1,0 +1,4 @@
+.venv
+.vscode
+*.txt
+malware_log_example
