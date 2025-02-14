@@ -10,32 +10,20 @@ def process_log_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read().strip()
-            
-            # Handle potential JSON array formatting
-            log_entries = content.split('},{')
-            # 除去最后一个entry末尾带的','
-            log_entries[-1] = log_entries[-1][:-1]
-            
-            for entry in log_entries:
-                entry = entry.strip()
-                if not entry:
-                    continue
-                
-                # Ensure proper JSON formatting
-                if not entry.startswith('{'):
-                    entry = '{' + entry
-                if not entry.endswith('}'):
-                    entry += '}'
-                
-                try:
-                    log_entry = json.loads(entry)
-                    api = f"{log_entry['class']}#{log_entry['method']}"
+            # 去除末尾多余的逗号
+            if content.endswith(','):
+                content = content[:-1]
+            # 包裹成JSON数组格式
+            wrapped_content = f'[{content}]'
+            try:
+                log_entries = json.loads(wrapped_content)
+                for entry in log_entries:
+                    api = f"{entry['class']}#{entry['method']}"
                     transaction.append(api)
-                except (json.JSONDecodeError, KeyError) as e:
-                    print(f"Error parsing entry in {file_path}: {e}")
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"Error parsing entries in {file_path}: {e}")
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
-    
     return transaction
 
 def main():
