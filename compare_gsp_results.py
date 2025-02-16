@@ -23,65 +23,71 @@ def parse_gsp_results(file_path, min_length):
     
     return sequences
 
-def find_common_and_unique_sequences(file1, file2, min_length, unique_length, output_file):
-    """查找并保存共有序列和特有序列，按长度分组输出"""
-    # 解析两个文件
-    seq1 = parse_gsp_results(file1, min_length)
-    seq2 = parse_gsp_results(file2, min_length)
+def find_common_and_unique_sequences(file_paths, min_length, unique_length, output_file):
+    """处理多个文件的共有和特有序列"""
+    # 解析所有文件
+    all_sequences = [parse_gsp_results(fp, min_length) for fp in file_paths]
     
-    # 找交集并按长度分组
+    # 计算共有序列（所有文件的交集）
     common_sequences = defaultdict(list)
-    for length in set(seq1.keys()) | set(seq2.keys()):
-        if length >= min_length:
-            common = seq1.get(length, set()) & seq2.get(length, set())
-            if common:
-                common_sequences[length] = sorted(common)
+    all_lengths = set()
+    for seq in all_sequences:
+        all_lengths.update(seq.keys())
     
-    # 找特有序列（仅在file1或file2中出现）
-    unique_seq1 = defaultdict(list)
-    unique_seq2 = defaultdict(list)
+    for length in sorted(all_lengths):
+        if length < min_length:
+            continue
+        # 收集各文件的序列集合
+        seq_sets = [seq.get(length, set()) for seq in all_sequences]
+        common = set.intersection(*seq_sets)
+        if common:
+            common_sequences[length] = sorted(common)
+    
+    # 计算特有序列（每个文件独有的序列）
+    unique_seqs_per_file = []
     if unique_length > 0:
-        for length in set(seq1.keys()) | set(seq2.keys()):
-            if length >= unique_length:
-                unique1 = seq1.get(length, set()) - seq2.get(length, set())
-                unique2 = seq2.get(length, set()) - seq1.get(length, set())
-                if unique1:
-                    unique_seq1[length] = sorted(unique1)
-                if unique2:
-                    unique_seq2[length] = sorted(unique2)
+        for i, seq_dict in enumerate(all_sequences):
+            unique_seqs = defaultdict(list)
+            for length in seq_dict:
+                if length < unique_length:
+                    continue
+                # 合并其他文件的序列
+                other_sequences = set()
+                for j, other_seq in enumerate(all_sequences):
+                    if j != i:
+                        other_sequences.update(other_seq.get(length, set()))
+                # 计算当前文件的特有序列
+                current = seq_dict[length] - other_sequences
+                if current:
+                    unique_seqs[length] = sorted(current)
+            unique_seqs_per_file.append(unique_seqs)
     
     # 写入输出文件
     with open(output_file, 'w', encoding='utf-8') as f:
         # 写入共有序列
-        f.write(f"Common sequences (length >= {min_length}):\n\n")
+        f.write(f"Common sequences across all files (length >= {min_length}):\n\n")
         for length in sorted(common_sequences.keys()):
             f.write(f"Sequences of length {length}:\n")
             for idx, seq in enumerate(common_sequences[length], 1):
                 f.write(f"  {idx}. {seq}\n")
             f.write("\n")
         
-        # 写入特有序列（如果启用了-y参数）
+        # 写入特有序列
         if unique_length > 0:
-            f.write(f"\nUnique sequences in {file1} (length >= {unique_length}):\n\n")
-            for length in sorted(unique_seq1.keys()):
-                f.write(f"Sequences of length {length}:\n")
-                for idx, seq in enumerate(unique_seq1[length], 1):
-                    f.write(f"  {idx}. {seq}\n")
-                f.write("\n")
-            
-            f.write(f"\nUnique sequences in {file2} (length >= {unique_length}):\n\n")
-            for length in sorted(unique_seq2.keys()):
-                f.write(f"Sequences of length {length}:\n")
-                for idx, seq in enumerate(unique_seq2[length], 1):
-                    f.write(f"  {idx}. {seq}\n")
-                f.write("\n")
+            for i, (file_path, unique_seqs) in enumerate(zip(file_paths, unique_seqs_per_file)):
+                f.write(f"\nUnique sequences in {file_path} (length >= {unique_length}):\n\n")
+                for length in sorted(unique_seqs.keys()):
+                    f.write(f"Sequences of length {length}:\n")
+                    for idx, seq in enumerate(unique_seqs[length], 1):
+                        f.write(f"  {idx}. {seq}\n")
+                    f.write("\n")
     
     print(f"Results saved to {output_file}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Compare two GSP result files')
-    parser.add_argument('file1', help='First GSP result file')
-    parser.add_argument('file2', help='Second GSP result file')
+    parser = argparse.ArgumentParser(description='Compare two or more GSP result files')
+    parser.add_argument('-m', '--multi-file', help='Path to a file containing list of GSP result files')
+    parser.add_argument('files', nargs='*', help='GSP result files to compare (specify two files if not using -m)')
     parser.add_argument('-x', '--min-length', type=int, required=True,
                         help='Minimum sequence length to compare for common sequences')
     parser.add_argument('-y', '--unique-length', type=int, default=0,
@@ -91,9 +97,19 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    # 处理文件路径
+    if args.multi_file:
+        # 从列表文件读取路径
+        with open(args.multi_file, 'r') as f:
+            file_paths = [line.strip() for line in f if line.strip()]
+    else:
+        # 直接使用命令行参数中的文件
+        if len(args.files) < 2:
+            parser.error("At least two files are required when not using -m")
+        file_paths = args.files
+    
     find_common_and_unique_sequences(
-        args.file1,
-        args.file2,
+        file_paths,
         args.min_length,
         args.unique_length,
         args.output
